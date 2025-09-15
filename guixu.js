@@ -1,5 +1,4 @@
- <script>
-    // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
+ // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
     // --- SillyTavern Global API ---
     // These are provided by the SillyTavern environment at runtime.
       // We will check for their existence before using them.
@@ -20431,4 +20430,3 @@ async updateUnifiedSummaryDisplay() {
   
           // 事件监听已在 GuixuManager.init() 中处理，此处不再需要
       })();
-    </script>
