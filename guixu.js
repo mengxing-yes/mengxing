@@ -1,4 +1,4 @@
- // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
+    // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
     // --- SillyTavern Global API ---
     // These are provided by the SillyTavern environment at runtime.
       // We will check for their existence before using them.
@@ -7,7 +7,7 @@
       // --- Main Application Logic ---
       (function () {
 
-    // 类脑/旅程梦星作品，基于原作者GuixuManager修改，禁止二传，禁止商业化，均无偿免费开源分享
+    // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
     const AppStorage = (() => {
     const STORAGE_NAMESPACE = 'GUIXU_GACHA_';
     const getNamespacedKey = (key) => `${STORAGE_NAMESPACE}${key}`;
@@ -49,33 +49,68 @@
         'use strict';
 
         // --- API Availability Check ---
-        try {
-             if (
-                 typeof TavernHelper === 'undefined' ||
-                 typeof eventOn === 'undefined' ||
-                 typeof tavern_events === 'undefined' ||
-                 typeof getChatMessages === 'undefined' ||
-                 typeof getCurrentMessageId === 'undefined'
-             ) {
-                 throw new Error('SillyTavern API not found');
-             }
-         } catch (e) {
-             console.error('TavernHelper API, event system, or lodash not found.');
-             document.addEventListener('DOMContentLoaded', () => {
-                 document.body.innerHTML =
-                 '<div style="color: red; text-align: center; padding: 20px; font-family: sans-serif;">' +
-                 '<h1>错误：SillyTavern 环境 API 未找到或版本不兼容</h1>' +
-                 '<p style="color:grey;">请确保已安装并启用 TavernHelper 扩展，或检查浏览器控制台以获取详细错误信息。</p>' +
-                 '</div>';
-             });
-             return; // 关键：立即停止执行，防止后续代码因缺少API而崩溃
-         }
+        if (
+          typeof TavernHelper === 'undefined' ||
+          typeof eventOn === 'undefined' ||
+          typeof tavern_events === 'undefined' ||
+          typeof getChatMessages === 'undefined' ||
+          typeof getCurrentMessageId === 'undefined'
+        ) {
+          console.error('TavernHelper API, event system, or lodash not found.');
+          document.addEventListener('DOMContentLoaded', () => {
+            document.body.innerHTML =
+              '<h1 style="color: red; text-align: center;">错误：SillyTavern 环境 API 未找到或版本不兼容</h1><p style="color:grey; text-align:center;">请确保已安装并启用 TavernHelper 扩展。</p>';
+          });
+          return;
+        }
 
         // --- Core Application Object for UI Interactions ---
         // 类脑/旅程梦星作品，禁止二传，禁止商业化，均无偿免费开源分享
         const GuixuManager = {
-          // --- 数据库实例 ---
-          db: null,
+          isInitialized: false, // 初始化状态标志
+
+          destroy() {
+            // 清理逻辑将在这里逐步添加
+            console.log('[归墟] GuixuManager.destroy() 被调用');
+
+            // 1. 移除键盘快捷键监听器
+            if (this.boundHandleKeydown) {
+              document.removeEventListener('keydown', this.boundHandleKeydown);
+              this.boundHandleKeydown = null;
+            }
+
+            // 2. 清除自动保存定时器
+            if (this.autoSaveInterval) {
+              clearInterval(this.autoSaveInterval);
+              this.autoSaveInterval = null;
+            }
+
+            // 3. 移除动态添加的DOM元素
+            const rootContainer = document.querySelector('.guixu-root-container');
+            if (rootContainer) {
+              rootContainer.remove();
+            }
+            const modals = document.querySelectorAll('.modal-overlay');
+            modals.forEach(modal => modal.remove());
+
+            // 4. 重置所有状态
+            this.isInitialized = false;
+            this.currentMvuState = null;
+            this.db = null;
+            this.dbPromise = null;
+            this.equippedItems = {};
+            this.pendingActions = [];
+            this.guixuStoreItems = [];
+            this.baseAttributes = {};
+            this.calculatedMaxAttributes = {};
+            this.lastExtractedJourney = null;
+            this.lastExtractedPastLives = null;
+            this.gachaState = {};
+            this.gachaCollection = {};
+            this.gachaHistory = [];
+            this.gachaPools = { character: { ssr: [], sr: [], r: [] }, item: { ssr: [], sr: [], r: [] }, talent: { ssr: [], sr: [], r: [] } };
+            // ... and so on for all other properties
+          },
  
           // --- 新增：衍梦尘 Gacha系统状态变量 ---
           isFromGuixuSystem: false,
@@ -123,7 +158,6 @@
           // --- IndexedDB 数据库实例缓存 ---
           db: null,
           dbPromise: null,
-          dbAvailable: false, // 标记数据库是否可用
           rightPanelCollapsed: false,
           
           // 追踪已装备物品的状态
@@ -507,13 +541,12 @@
           },
 
           async init() {
-            // --- 数据库初始化 ---
-            try {
-              await this.initializeDatabase();
-              console.log('[归墟Plus] Dexie 数据库初始化完成');
-            } catch (error) {
-              console.error('[归墟Plus] 数据库初始化失败:', error);
+            if (this.isInitialized) {
+              console.log('[归墟] GuixuManager 已初始化，跳过重复操作。');
+              return;
             }
+            console.log('[归墟] 正在初始化 GuixuManager...');
+            this.isInitialized = true;
 
             // --- 新增：动态注入归墟空间定制化CSS ---
             const customStyles = `
@@ -1784,24 +1817,6 @@
           bindStaticListeners() {
             if (this.listenersBound) return; // 如果已经绑定过，则直接返回
 
-            // --- 新增：为世界书高级设置中的位置选择框添加实时交互 ---
-            try {
-                ['journey', 'past-lives', 'novel', 'segmented', 'large-summary', 'small-summary'].forEach(type => {
-                    const positionSelect = document.getElementById(`${type}-position`);
-                    const depthContainer = document.getElementById(`${type}-depth-container`);
-
-                    if (positionSelect && depthContainer) {
-                        positionSelect.addEventListener('change', (event) => {
-                            depthContainer.style.display = event.target.value.startsWith('at_depth') ? 'contents' : 'none';
-                            // 保存设置以持久化
-                            this.saveWorldbookSettings();
-                        });
-                    }
-                });
-            } catch(e) {
-                console.error("绑定世界书高级设置交互事件失败:", e);
-            }
-
             // 新增：为视图切换按钮绑定监听器
             document.getElementById('view-toggle-btn')?.addEventListener('click', () => this.toggleViewMode());
             document.getElementById('fullscreen-btn')?.addEventListener('click', () => this.toggleFullScreen());
@@ -1953,8 +1968,8 @@
 
             document.getElementById('btn-inventory')?.addEventListener('click', () => this.showInventory());
             document.getElementById('btn-relationships')?.addEventListener('click', () => this.showRelationships());
-            // document.getElementById('btn-world-events')?.addEventListener('click', () => this.showWorldEvents());
-            // document.getElementById('btn-variable-editor')?.addEventListener('click', () => this.showVariableEditor());
+            document.getElementById('btn-world-events')?.addEventListener('click', () => this.showWorldEvents());
+            // document.getElementById('btn-variable-editor')?.addEventListener('click', () => this.showVariableEditor()); // 变量修改器已隐藏
             document.getElementById('btn-guixu-system')?.addEventListener('click', () => this.showGuixuSystem());
             document.getElementById('btn-guixu-space')?.addEventListener('click', () => this.showGuixuSpace());
             // 思维过程容器的点击事件改为header
@@ -1979,23 +1994,6 @@
               this.isFromSettingsModal = true; // 设置标志位
               this.showMap();
             });
-
-            // 从设置中打开世界大事
-            document.getElementById('world-events-btn-from-settings')?.addEventListener('click', () => {
-                this.isFromSettingsModal = true;
-                this.showWorldEvents();
-            });
-            // 从设置中打开变量编辑器
-            document.getElementById('variable-editor-btn-from-settings')?.addEventListener('click', () => {
-                this.isFromSettingsModal = true;
-                this.showVariableEditor();
-            });
-            // 从设置中打开小说模式
-            document.getElementById('novel-mode-btn-from-settings')?.addEventListener('click', () => {
-                this.isFromSettingsModal = true;
-                this.showNovelMode();
-            });
-
             document.getElementById('background-settings-btn')?.addEventListener('click', () => {
               this.isFromSettingsModal = true; // 设置标志位
               this.showBackgroundSettings();
@@ -2140,7 +2138,7 @@
             document.getElementById('btn-view-journey-main')?.addEventListener('click', () => this.showJourney());
             document.getElementById('btn-view-past-lives-main')?.addEventListener('click', () => this.showPastLives());
             document.getElementById('btn-save-load-manager')?.addEventListener('click', () => this.showSaveLoadManager());
-            // document.getElementById('btn-novel-mode')?.addEventListener('click', () => this.showNovelMode());
+            document.getElementById('btn-novel-mode')?.addEventListener('click', () => this.showNovelMode());
             document.getElementById('btn-clear-all-saves')?.addEventListener('click', () => this.clearAllSaves());
 
             // 新增：小说模式章节导航和书签事件监听器
@@ -2549,19 +2547,18 @@
           },
  
             // --- Modal Control ---
-            showSettings() {
-              this.isFromSettingsModal = false; // 确保从其他地方打开时重置状态
-              this.openModal('settings-modal');
-              // 初始化透明度滑块
-              this.initOpacitySlider();
-              // 初始化文字设置UI
-              this.updateTextSettingsUI();
-              this.updateCustomFontsList();
-              // 确保当前字体样式立即生效
-              this.applyTextSettings();
-              // 初始化世界书控制状态
-              this.initWorldbookControlsInSettings();
-            },
+           showSettings() {
+             this.openModal('settings-modal');
+             // 初始化透明度滑块
+             this.initOpacitySlider();
+             // 初始化文字设置UI
+             this.updateTextSettingsUI();
+             this.updateCustomFontsList();
+             // 确保当前字体样式立即生效
+             this.applyTextSettings();
+             // 初始化世界书控制状态
+             this.initWorldbookControlsInSettings();
+           },
 
            // 新增：初始化透明度滑块
            initOpacitySlider() {
@@ -2794,12 +2791,6 @@
                        if (font.cacheKey) {
                          // 新版本：从IndexedDB加载
                          const cachedFont = await this.loadFontFromIndexedDB(font.cacheKey);
-
-                         // --- 核心修复：检查字体是否成功加载 ---
-                         if (!cachedFont) {
-                            console.warn(`[归墟] 字体 "${font.name}" 从缓存加载失败，跳过。`);
-                            return false; // 返回false，以便后续过滤掉
-                         }
                          
                          // 移除可能存在的旧样式
                          const oldStyle = document.getElementById(`font-style-${font.hash}`);
@@ -2811,7 +2802,7 @@
                          style.id = `font-style-${font.hash}`;
                          style.textContent = `
                            @font-face {
-                             font-family: "${font.family}";
+                             font-family: ${font.family};
                              src: url(${cachedFont.data});
                              font-display: swap;
                            }
@@ -3267,59 +3258,57 @@
            },
 
            // 使用IndexedDB存储字体文件
-           // --- Dexie DB 统一管理 ---
-           async initializeDatabase() {
-               try {
-                   // 检查环境支持
-                   if (!window.indexedDB) {
-                       console.warn('[归墟] IndexedDB不受支持，字体和头像缓存功能将被禁用');
-                       this.dbAvailable = false;
-                       return false;
-                   }
-
-                   // 检查Dexie库是否可用
-                   if (typeof window.Dexie === 'undefined') {
-                       console.warn('[归墟] Dexie库未加载，IndexedDB功能将被禁用');
-                       this.dbAvailable = false;
-                       return false;
-                   }
-
-                   // 初始化数据库
-                   this.db = new window.Dexie('GuixuDB');
-                   this.db.version(3).stores({
-                       fonts: 'cacheKey, name, family', // 主键是 cacheKey
-                       character_avatars: 'characterName' // 主键是 characterName，其他字段自动存储
-                   });
-                   
-                   // 确保数据库打开
-                   await this.db.open();
-                   this.dbAvailable = true;
-                   console.log('[归墟] Dexie 数据库初始化成功');
-                   return true;
-               } catch (error) {
-                   console.warn('[归墟] IndexedDB初始化失败，相关功能将被禁用:', error.message);
-                   this.db = null;
-                   this.dbAvailable = false;
-                   return false;
+           // --- IndexedDB 统一管理 ---
+           initDB() {
+               if (this.db) {
+                   return Promise.resolve(this.db);
                }
+               if (this.dbPromise) {
+                   return this.dbPromise;
+               }
+
+               this.dbPromise = new Promise((resolve, reject) => {
+                   const request = indexedDB.open('GuixuDB', 3);
+
+                   request.onerror = () => {
+                       console.error('IndexedDB打开失败:', request.error);
+                       this.dbPromise = null; // 重置以便重试
+                       reject(request.error);
+                   };
+
+                   request.onupgradeneeded = (event) => {
+                       console.log('IndexedDB升级中...');
+                       const db = event.target.result;
+
+                       if (!db.objectStoreNames.contains('fonts')) {
+                           const fontStore = db.createObjectStore('fonts', { keyPath: 'cacheKey' });
+                           fontStore.createIndex('name', 'name', { unique: false });
+                           fontStore.createIndex('timestamp', 'timestamp', { unique: false });
+                           console.log('对象存储 fonts 创建成功');
+                       }
+
+                       if (!db.objectStoreNames.contains('character_avatars')) {
+                           const avatarStore = db.createObjectStore('character_avatars', { keyPath: 'characterName' });
+                           avatarStore.createIndex('timestamp', 'timestamp', { unique: false });
+                           console.log('对象存储 character_avatars 创建成功');
+                       }
+                   };
+
+                   request.onsuccess = (event) => {
+                       console.log('IndexedDB打开成功');
+                       this.db = event.target.result;
+                       this.dbPromise = null;
+                       resolve(this.db);
+                   };
+               });
+               return this.dbPromise;
            },
 
            async storeFontInIndexedDB(cacheKey, fontData, fontName, fontFamily) {
                try {
-                   // 检查数据库可用性
-                   if (!this.dbAvailable) {
-                       console.warn('[归墟] IndexedDB不可用，跳过字体缓存:', fontName);
-                       return false;
-                   }
-
-                   // 确保数据库已初始化
-                   if (!this.db) {
-                       const initSuccess = await this.initializeDatabase();
-                       if (!initSuccess) {
-                           return false;
-                       }
-                   }
-                   
+                   const db = await this.initDB();
+                   const transaction = db.transaction(['fonts'], 'readwrite');
+                   const store = transaction.objectStore('fonts');
                    const fontRecord = {
                        cacheKey: cacheKey,
                        name: fontName,
@@ -3327,44 +3316,91 @@
                        data: fontData,
                        timestamp: Date.now()
                    };
-                   await this.db.fonts.put(fontRecord);
-                   console.log('[归墟] 字体缓存成功:', fontName);
-                   return true;
+                   const request = store.put(fontRecord);
+                   return new Promise((resolve, reject) => {
+                       request.onsuccess = () => {
+                           console.log('字体缓存成功:', fontName);
+                           resolve();
+                       };
+                       request.onerror = () => {
+                           console.error('字体缓存失败:', request.error);
+                           reject(request.error);
+                       };
+                   });
                } catch (error) {
-                   console.warn('[归墟] 字体缓存失败，跳过:', error.message);
-                   return false;
+                   console.error('IndexedDB操作异常:', error);
+                   throw error;
                }
            },
 
            // 从IndexedDB加载字体文件
            async loadFontFromIndexedDB(cacheKey) {
-               try {
-                   // 检查数据库可用性
-                   if (!this.dbAvailable) {
-                       console.warn('[归墟] IndexedDB不可用，跳过字体加载:', cacheKey);
-                       return null;
+             return new Promise((resolve, reject) => {
+               const request = indexedDB.open('GuixuDB', 3);
+               
+               request.onerror = () => {
+                 console.error('IndexedDB打开失败:', request.error);
+                 reject(request.error);
+               };
+               
+               request.onupgradeneeded = (event) => {
+                   console.log('IndexedDB升级中 (from loadFont)...');
+                   const db = event.target.result;
+
+                   if (!db.objectStoreNames.contains('fonts')) {
+                       const fontStore = db.createObjectStore('fonts', { keyPath: 'cacheKey' });
+                       fontStore.createIndex('name', 'name', { unique: false });
+                       fontStore.createIndex('timestamp', 'timestamp', { unique: false });
+                       console.log('对象存储 fonts 创建成功');
                    }
 
-                   // 确保数据库已初始化
-                   if (!this.db) {
-                       const initSuccess = await this.initializeDatabase();
-                       if (!initSuccess) {
-                           return null;
-                       }
+                   if (!db.objectStoreNames.contains('character_avatars')) {
+                       const avatarStore = db.createObjectStore('character_avatars', { keyPath: 'characterName' });
+                       avatarStore.createIndex('timestamp', 'timestamp', { unique: false });
+                       console.log('对象存储 character_avatars 创建成功');
+                   }
+               };
+               
+               request.onsuccess = (event) => {
+                 const db = event.target.result;
+                 
+                 try {
+                   // 检查对象存储是否存在
+                   if (!db.objectStoreNames.contains('fonts')) {
+                     console.warn('fonts对象存储不存在，字体缓存为空');
+                     db.close();
+                     reject(new Error('fonts对象存储不存在'));
+                     return;
                    }
                    
-                   const fontRecord = await this.db.fonts.get(cacheKey);
-                   if (fontRecord) {
-                       console.log('[归墟] 字体缓存加载成功:', fontRecord.name);
-                       return fontRecord;
-                   } else {
-                       console.warn('[归墟] 字体缓存未找到:', cacheKey);
-                       return null;
-                   }
-               } catch (error) {
-                   console.warn('[归墟] 字体缓存读取失败，跳过:', error.message);
-                   return null;
-               }
+                   const transaction = db.transaction(['fonts'], 'readonly');
+                   const store = transaction.objectStore('fonts');
+                   
+                   const getRequest = store.get(cacheKey);
+                   getRequest.onsuccess = () => {
+                     if (getRequest.result) {
+                       console.log('字体缓存加载成功:', getRequest.result.name);
+                       resolve(getRequest.result);
+                     } else {
+                       console.warn('字体缓存未找到:', cacheKey);
+                       reject(new Error('Font not found in cache'));
+                     }
+                   };
+                   getRequest.onerror = () => {
+                     console.error('字体缓存读取失败:', getRequest.error);
+                     reject(getRequest.error);
+                   };
+                   
+                   transaction.onerror = () => {
+                     console.error('读取事务失败:', transaction.error);
+                     reject(transaction.error);
+                   };
+                 } catch (error) {
+                   console.error('IndexedDB读取异常:', error);
+                   reject(error);
+                 }
+               };
+             });
            },
 
            // 更新自定义字体列表显示
@@ -3520,111 +3556,151 @@
            },
 
            // 从IndexedDB中删除字体文件
-           async removeFontFromIndexedDB(cacheKey) {
-               try {
-                   // 检查数据库可用性
-                   if (!this.dbAvailable) {
-                       console.warn('[归墟] IndexedDB不可用，跳过字体删除:', cacheKey);
-                       return false;
+           removeFontFromIndexedDB(cacheKey) {
+             return new Promise((resolve, reject) => {
+               const request = indexedDB.open('GuixuDB', 3);
+               
+               request.onerror = () => {
+                 console.error('IndexedDB打开失败:', request.error);
+                 reject(request.error);
+               };
+               
+               request.onupgradeneeded = (event) => {
+                   console.log('IndexedDB升级中 (from removeFont)...');
+                   const db = event.target.result;
+
+                   if (!db.objectStoreNames.contains('fonts')) {
+                       const fontStore = db.createObjectStore('fonts', { keyPath: 'cacheKey' });
+                       fontStore.createIndex('name', 'name', { unique: false });
+                       fontStore.createIndex('timestamp', 'timestamp', { unique: false });
+                       console.log('对象存储 fonts 创建成功');
                    }
 
-                   // 确保数据库已初始化
-                   if (!this.db) {
-                       const initSuccess = await this.initializeDatabase();
-                       if (!initSuccess) {
-                           return false;
-                       }
+                   if (!db.objectStoreNames.contains('character_avatars')) {
+                       const avatarStore = db.createObjectStore('character_avatars', { keyPath: 'characterName' });
+                       avatarStore.createIndex('timestamp', 'timestamp', { unique: false });
+                       console.log('对象存储 character_avatars 创建成功');
+                   }
+               };
+               
+               request.onsuccess = (event) => {
+                 const db = event.target.result;
+                 
+                 try {
+                   // 检查对象存储是否存在
+                   if (!db.objectStoreNames.contains('fonts')) {
+                     console.warn('fonts对象存储不存在，无需删除');
+                     resolve(); // 不存在就当作删除成功
+                     return;
                    }
                    
-                   await this.db.fonts.delete(cacheKey);
-                   console.log('[归墟] 字体缓存删除成功:', cacheKey);
-                   return true;
-               } catch (error) {
-                   console.warn('[归墟] 字体缓存删除失败，跳过:', error.message);
-                   return false;
-               }
+                   const transaction = db.transaction(['fonts'], 'readwrite');
+                   const store = transaction.objectStore('fonts');
+                   
+                   const deleteRequest = store.delete(cacheKey);
+                   deleteRequest.onsuccess = () => {
+                     console.log('字体缓存删除成功:', cacheKey);
+                     resolve();
+                   };
+                   deleteRequest.onerror = () => {
+                     console.error('字体缓存删除失败:', deleteRequest.error);
+                     reject(deleteRequest.error);
+                   };
+                   
+                   transaction.onerror = () => {
+                     console.error('删除事务失败:', transaction.error);
+                     reject(transaction.error);
+                   };
+                 } catch (error) {
+                   console.error('IndexedDB删除异常:', error);
+                   reject(error);
+                 }
+               };
+             });
            },
 
            // --- 人物头像 IndexedDB 操作 ---
-           async storeAvatarInDB(recordData) {
+           async storeAvatarInDB(characterName, imageData, opacity) {
                try {
-                   // 检查数据库可用性
-                   if (!this.dbAvailable) {
-                       console.warn('[归墟] IndexedDB不可用，跳过头像缓存:', recordData?.characterName);
-                       return false;
-                   }
-
-                   // 确保数据库已初始化
-                   if (!this.db) {
-                       const initSuccess = await this.initializeDatabase();
-                       if (!initSuccess) {
-                           return false;
-                       }
-                   }
-                   
-                   // 获取角色名
-                   const characterName = recordData.characterName;
-                   if (!characterName) {
-                       console.warn('[归墟] 角色名为空，跳过头像缓存');
-                       return false;
-                   }
+                   const db = await this.initDB();
+                   const transaction = db.transaction(['character_avatars'], 'readwrite');
+                   const store = transaction.objectStore('character_avatars');
                    
                    // 先获取现有记录
-                   const existingRecord = await this.db.character_avatars.get(characterName);
+                   const existingRecord = await new Promise((resolve, reject) => {
+                       const request = store.get(characterName);
+                       request.onsuccess = () => resolve(request.result);
+                       request.onerror = () => reject(request.error);
+                   });
 
-                   // 合并新数据和现有数据
                    const avatarRecord = {
                        characterName: characterName,
-                       avatarImage: recordData.avatarImage !== undefined ? recordData.avatarImage : existingRecord?.avatarImage,
-                       backgroundImage: recordData.backgroundImage !== undefined ? recordData.backgroundImage : existingRecord?.backgroundImage,
-                       backgroundOpacity: recordData.backgroundOpacity !== undefined ? recordData.backgroundOpacity : existingRecord?.backgroundOpacity ?? 0.5,
+                       imageData: imageData !== undefined ? imageData : existingRecord?.imageData,
+                       opacity: opacity !== undefined ? opacity : existingRecord?.opacity ?? 1.0,
                        timestamp: Date.now()
                    };
 
-                   await this.db.character_avatars.put(avatarRecord);
-                   console.log(`[归墟] 角色头像 [${characterName}] 缓存成功`);
-                   return true;
+                   const request = store.put(avatarRecord);
+                   return new Promise((resolve, reject) => {
+                       request.onsuccess = () => {
+                           console.log(`角色头像 [${characterName}] 缓存成功`);
+                           resolve();
+                       };
+                       request.onerror = () => {
+                           console.error(`角色头像 [${characterName}] 缓存失败:`, request.error);
+                           reject(request.error);
+                       };
+                   });
                } catch (error) {
-                   console.warn(`[归墟] 角色头像 [${recordData?.characterName || 'unknown'}] 缓存失败，跳过:`, error.message);
-                   return false;
+                   console.error('IndexedDB (头像) 操作异常:', error);
+                   throw error;
                }
            },
 
            async getAvatarFromDB(characterName) {
                try {
-                   // 检查数据库可用性
-                   if (!this.dbAvailable) {
-                       return null;
-                   }
-
-                   // 确保数据库已初始化
-                   if (!this.db) {
-                       const initSuccess = await this.initializeDatabase();
-                       if (!initSuccess) {
-                           return null;
-                       }
-                   }
-                   
-                   const result = await this.db.character_avatars.get(characterName);
-                   return result || null; // 明确返回null
+                   const db = await this.initDB();
+                   const transaction = db.transaction(['character_avatars'], 'readonly');
+                   const store = transaction.objectStore('character_avatars');
+                   const request = store.get(characterName);
+                   return new Promise((resolve, reject) => {
+                       request.onsuccess = () => {
+                           if (request.result) {
+                               resolve(request.result);
+                           } else {
+                               resolve(null); // 明确返回null
+                           }
+                       };
+                       request.onerror = () => {
+                           console.error(`读取角色头像 [${characterName}] 失败:`, request.error);
+                           reject(request.error);
+                       };
+                   });
                } catch (error) {
                    // 如果数据库初始化失败等，直接返回null
-                   console.warn('[归墟] IndexedDB (头像) 读取异常，跳过:', error.message);
+                   console.error('IndexedDB (头像) 读取异常:', error);
                    return null;
                }
            },
 
            async removeAvatarFromDB(characterName) {
                try {
-                   // 确保数据库已初始化
-                   if (!this.db) {
-                       await this.initializeDatabase();
-                   }
-                   
-                   await this.db.character_avatars.delete(characterName);
-                   console.log(`角色头像 [${characterName}] 删除成功`);
+                   const db = await this.initDB();
+                   const transaction = db.transaction(['character_avatars'], 'readwrite');
+                   const store = transaction.objectStore('character_avatars');
+                   const request = store.delete(characterName);
+                   return new Promise((resolve, reject) => {
+                       request.onsuccess = () => {
+                           console.log(`角色头像 [${characterName}] 删除成功`);
+                           resolve();
+                       };
+                       request.onerror = () => {
+                           console.error(`角色头像 [${characterName}] 删除失败:`, request.error);
+                           reject(request.error);
+                       };
+                   });
                } catch (error) {
-                   console.error(`角色头像 [${characterName}] 删除失败:`, error);
+                   console.error('IndexedDB (头像) 删除异常:', error);
                    throw error;
                }
            },
@@ -3709,27 +3785,51 @@
            },
 
            // 清理过期的字体缓存（可选功能）
-           async cleanupExpiredFontCache() {
-               try {
-                   // 确保数据库已初始化
-                   if (!this.db) {
-                       await this.initializeDatabase();
+           cleanupExpiredFontCache() {
+             const request = indexedDB.open('GuixuDB', 3);
+
+             request.onerror = () => {
+                 console.error('IndexedDB打开失败 (cleanup):', request.error);
+             };
+
+             request.onupgradeneeded = (event) => {
+                 console.log('IndexedDB升级中 (from cleanup)...');
+                 const db = event.target.result;
+
+                 if (!db.objectStoreNames.contains('fonts')) {
+                     const fontStore = db.createObjectStore('fonts', { keyPath: 'cacheKey' });
+                     fontStore.createIndex('name', 'name', { unique: false });
+                     fontStore.createIndex('timestamp', 'timestamp', { unique: false });
+                     console.log('对象存储 fonts 创建成功');
+                 }
+
+                 if (!db.objectStoreNames.contains('character_avatars')) {
+                     const avatarStore = db.createObjectStore('character_avatars', { keyPath: 'characterName' });
+                     avatarStore.createIndex('timestamp', 'timestamp', { unique: false });
+                     console.log('对象存储 character_avatars 创建成功');
+                 }
+             };
+             
+             request.onsuccess = (event) => {
+               const db = event.target.result;
+               const transaction = db.transaction(['fonts'], 'readwrite');
+               const store = transaction.objectStore('fonts');
+               
+               const now = Date.now();
+               const expireTime = 30 * 24 * 60 * 60 * 1000; // 30天过期
+               
+               store.openCursor().onsuccess = (event) => {
+                 const cursor = event.target.result;
+                 if (cursor) {
+                   const record = cursor.value;
+                   if (now - record.timestamp > expireTime) {
+                     cursor.delete();
+                     console.log(`[归墟文字设置] 清理过期字体缓存: ${record.name}`);
                    }
-                   
-                   const now = Date.now();
-                   const expireTime = 30 * 24 * 60 * 60 * 1000; // 30天过期
-                   
-                   const allFonts = await this.db.fonts.toArray();
-                   
-                   for (const record of allFonts) {
-                       if (now - record.timestamp > expireTime) {
-                           await this.db.fonts.delete(record.cacheKey);
-                           console.log(`[归墟文字设置] 清理过期字体缓存: ${record.name}`);
-                       }
-                   }
-               } catch (error) {
-                   console.error('字体缓存清理失败:', error);
-               }
+                   cursor.continue();
+                 }
+               };
+             };
            },
 
            async showGuixuSystem() {
@@ -4319,14 +4419,6 @@
                 // 如果不是从归墟系统进入，则会执行下面的默认关闭逻辑
             }
 
-            // 新增：处理从设置界面打开的窗口的返回逻辑
-            if (this.isFromSettingsModal) {
-                this.closeModal(modalOverlay.id);
-                this.showSettings();
-                this.isFromSettingsModal = false; // 重置标志
-                return;
-            }
-
             if (!modalOverlay) {
               this.closeAllModals();
               return;
@@ -4706,9 +4798,6 @@
 
           // 新增：显示世界大事
           async showWorldEvents() {
-            if (this.isFromSettingsModal) {
-                this.closeModal('settings-modal');
-            }
             this.openModal('world-events-modal');
             const body = document.querySelector('#world-events-modal .modal-body');
             if (!body) return;
@@ -4871,210 +4960,628 @@
             `;
           },
 
-          // 显示变量编辑器 (重构)
+          // 新增：显示变量修改器 - 已禁用
           async showVariableEditor() {
-            if (this.isFromSettingsModal) {
-                this.closeModal('settings-modal');
-            }
+            console.log('[变量修改器] 功能已禁用');
+            return;
+            /*
             this.openModal('variable-editor-modal');
             this.initVariableEditor();
+            
+            // 初始化智能编辑器功能
+            this.initKeyboardShortcuts();
+            */
           },
 
-
-          // 初始化变量编辑器 (重构)
+          // 新增：初始化变量修改器
           initVariableEditor() {
-              const tabs = document.querySelectorAll('#variable-editor-modal .tab-btn');
-              const searchInput = document.getElementById('variable-search-input');
-              const saveButton = document.getElementById('save-variable-changes-btn');
-
-              let activeCategory = 'system';
-              let searchTerm = '';
-
-              const handleTabClick = (tab) => {
-                  tabs.forEach(t => t.classList.remove('active'));
-                  tab.classList.add('active');
-                  activeCategory = tab.dataset.category;
-                  this.renderVariables(activeCategory, searchTerm);
-              }
-
-              // Tab切换逻辑
-              tabs.forEach(tab => {
-                  tab.removeEventListener('click', () => handleTabClick(tab)); // 移除旧监听器
-                  tab.addEventListener('click', () => handleTabClick(tab));
-              });
-
-              // 搜索逻辑
-              const handleSearch = () => {
-                  searchTerm = searchInput.value;
-                  this.renderVariables(activeCategory, searchTerm);
-              };
-              searchInput.removeEventListener('input', handleSearch); // 移除旧监听器
-              searchInput.addEventListener('input', handleSearch);
-
-              // 保存按钮逻辑
-              const handleSave = () => this.saveVariableChanges();
-              saveButton.removeEventListener('click', handleSave); // 移除旧监听器
-              saveButton.addEventListener('click', handleSave);
-
-              // 添加新变量按钮逻辑
-              const addNewVariableBtn = document.getElementById('add-new-variable-btn');
-              const handleAddNewVariable = () => this.addNewVariable();
-              addNewVariableBtn.removeEventListener('click', handleAddNewVariable); // 移除旧监听器
-              addNewVariableBtn.addEventListener('click', handleAddNewVariable);
-
-              // 初始渲染
-              this.renderVariables(activeCategory, searchTerm);
+            // 重置表单
+            document.getElementById('variable-category').value = '';
+            const pathInput = document.getElementById('variable-path');
+            if (pathInput) {
+              pathInput.value = '';
+            }
+            document.getElementById('current-variable-value').textContent = '未加载';
+            document.getElementById('new-variable-value').value = '';
+            document.getElementById('change-reason').value = '';
+            document.getElementById('mvu-command-preview').textContent = '请先加载变量并设置新值';
+            
+            // 重置变量列表
+            document.getElementById('variable-list').innerHTML = '<div class="placeholder">请选择分类查看变量</div>';
+            
+            // 设置默认操作类型
+            this.setOperationType('set');
+            
+            // 设置默认标签页
+            this.switchTab('browse');
+            
+            // 设置默认编辑模式
+            this.switchEditMode('raw');
+            
+            // 绑定事件监听器
+            this.bindVariableEditorEvents();
           },
 
-          // 渲染变量 (重构)
-          renderVariables(category, searchTerm) {
-              const displayArea = document.getElementById('variable-display-area');
-              if (!displayArea) return;
+          // 新增：绑定变量修改器事件
+          bindVariableEditorEvents() {
+            // 标签页切换事件
+            document.getElementById('tab-browse').addEventListener('click', () => {
+              this.switchTab('browse');
+            });
+            
+            document.getElementById('tab-manual').addEventListener('click', () => {
+              this.switchTab('manual');
+            });
 
-              displayArea.innerHTML = '<div class="placeholder">加载中...</div>';
+            // 分类选择事件
+            document.getElementById('variable-category').addEventListener('change', (e) => {
+              this.handleCategoryChange(e.target.value);
+            });
 
-              const stat_data = this.currentMvuState?.stat_data;
-              if (!stat_data) {
-                  displayArea.innerHTML = '<div class="placeholder">变量数据不可用。</div>';
-                  return;
+            // 加载变量按钮（手动模式）
+            const loadBtn = document.getElementById('load-variable-btn');
+            if (loadBtn) {
+              loadBtn.addEventListener('click', () => {
+                this.loadVariableManual();
+              });
+            }
+
+            // 操作类型按钮
+            document.querySelectorAll('.operation-btn').forEach(btn => {
+              btn.addEventListener('click', (e) => {
+                this.setOperationType(e.target.dataset.op);
+              });
+            });
+
+            // 预览命令按钮
+            document.getElementById('preview-command-btn').addEventListener('click', () => {
+              this.previewMvuCommand();
+            });
+
+            // 执行修改按钮
+            document.getElementById('execute-command-btn').addEventListener('click', () => {
+              this.executeMvuCommand();
+            });
+
+            // 编辑模式切换按钮
+            document.getElementById('mode-raw').addEventListener('click', () => {
+              this.switchEditMode('raw');
+            });
+
+            document.getElementById('mode-visual').addEventListener('click', () => {
+              this.switchEditMode('visual');
+            });
+
+            // 变量路径输入变化时自动预览
+            document.getElementById('variable-path').addEventListener('input', () => {
+              this.previewMvuCommand();
+            });
+
+            // 新值输入变化时自动预览
+            document.getElementById('new-variable-value').addEventListener('input', () => {
+              this.previewMvuCommand();
+              this.updateVisualEditor();
+            });
+
+            // 原因输入变化时自动预览
+            document.getElementById('change-reason').addEventListener('input', () => {
+              this.previewMvuCommand();
+            });
+          },
+
+          // 新增：标签页切换
+          switchTab(tabName) {
+            // 更新标签按钮状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+              btn.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            // 切换显示模式
+            const browseMode = document.getElementById('browse-mode');
+            const manualMode = document.getElementById('manual-mode');
+            
+            if (tabName === 'browse') {
+              browseMode.style.display = 'block';
+              manualMode.style.display = 'none';
+            } else {
+              browseMode.style.display = 'none';
+              manualMode.style.display = 'block';
+            }
+          },
+
+          // 新增：处理分类选择变化
+          handleCategoryChange(category) {
+            if (category) {
+              this.loadVariablesByCategory(category);
+            } else {
+              document.getElementById('variable-list').innerHTML = '<div class="placeholder">请选择分类查看变量</div>';
+            }
+          },
+
+          // 新增：根据分类加载变量列表
+          async loadVariablesByCategory(category) {
+            const variableList = document.getElementById('variable-list');
+            variableList.innerHTML = '<div class="placeholder">正在加载变量...</div>';
+
+            try {
+              const messages = await getChatMessages(getCurrentMessageId());
+              if (!messages || messages.length === 0 || !messages[0].data || !messages[0].data.stat_data) {
+                variableList.innerHTML = '<div class="placeholder">无法获取变量数据</div>';
+                return;
+              }
+
+              const stat_data = messages[0].data.stat_data;
+              const variables = this.getVariablesByCategory(stat_data, category);
+              
+              if (variables.length === 0) {
+                variableList.innerHTML = '<div class="placeholder">该分类下暂无变量</div>';
+                return;
               }
 
               let html = '';
-              const systemVars = ['当前第x世', '当前时间纪年', '归墟空间', '本世归墟选择', '归墟充能时间', '归墟点', '世界大事'];
-              
-              let variablesToRender = {};
-
-              if (category === 'system') {
-                  systemVars.forEach(key => {
-                      if (stat_data.hasOwnProperty(key)) {
-                          variablesToRender[key] = stat_data[key];
-                      }
-                  });
-              } else if (category === 'player') {
-                  Object.keys(stat_data).forEach(key => {
-                      if (!systemVars.includes(key) && key !== '人物关系列表' && key !== '$meta') {
-                          variablesToRender[key] = stat_data[key];
-                      }
-                  });
-              } else if (category === 'npc') {
-                  variablesToRender = stat_data['人物关系列表'] || {};
-              }
-
-              // 过滤
-              if (searchTerm) {
-                  const lowerCaseSearchTerm = searchTerm.toLowerCase();
-                  variablesToRender = Object.keys(variablesToRender)
-                      .filter(key => key.toLowerCase().includes(lowerCaseSearchTerm))
-                      .reduce((obj, key) => {
-                          obj[key] = variablesToRender[key];
-                          return obj;
-                      }, {});
-              }
-
-              if (Object.keys(variablesToRender).length === 0) {
-                  displayArea.innerHTML = '<div class="placeholder">没有匹配的变量。</div>';
-                  return;
-              }
-
-              // 生成HTML
-              html = this.buildReadableHtml(variablesToRender);
-              displayArea.innerHTML = html;
-          },
-
-          // 构建人类可读的HTML (已修复路径和空值问题)
-          buildReadableHtml(obj, level = 0, parentPath = '') {
-              let html = '';
-              for (const key in obj) {
-                  if (key === '$meta') continue;
-
-                  const value = obj[key];
-                  const isObject = typeof value === 'object' && value !== null;
-                  const currentPath = parentPath ? `${parentPath}.${key}` : key;
-
-                  html += `<div class="readable-variable-item" style="margin-left: ${level * 20}px;">`;
-                  html += `<div class="variable-title">${key}</div>`;
-                  
-                  if (isObject) {
-                      html += `<div class="nested-item">${this.buildReadableHtml(value, level + 1, currentPath)}</div>`;
-                  } else {
-                      const displayValue = (value === null) ? 'null' : (value === undefined) ? 'undefined' : value;
-                      html += `<div class="variable-value"><textarea rows="1" data-path="${currentPath}">${displayValue}</textarea></div>`;
-                  }
-                  html += `</div>`;
-              }
-              return html;
-          },
-
-          // 保存变量更改 (已增强)
-          async saveVariableChanges() {
-              const displayArea = document.getElementById('variable-display-area');
-              const textareas = displayArea.querySelectorAll('textarea[data-path]');
-              const commands = [];
-              const originalState = this.currentMvuState?.stat_data || {};
-
-              textareas.forEach(textarea => {
-                  const path = textarea.dataset.path;
-                  const newValueStr = textarea.value;
-                  const isNew = textarea.dataset.isNew === 'true';
-                  
-                  let newValue;
-                  try {
-                      // 尝试解析为JSON，如果失败则作为字符串
-                      newValue = JSON.parse(newValueStr);
-                  } catch (e) {
-                      newValue = newValueStr;
-                  }
-
-                  if (isNew) {
-                      // 对于新变量，直接生成set命令
-                      const command = `_.set('${path}', ${JSON.stringify(newValue)}); // 通过编辑器添加`;
-                      commands.push(command);
-                  } else {
-                      // 对于现有变量，比较值是否真的改变了
-                      const originalValue = this.getVariableByPath(originalState, path);
-                      if (JSON.stringify(originalValue) !== JSON.stringify(newValue)) {
-                          const command = `_.set('${path}', ${JSON.stringify(newValue)}); // 通过编辑器修改`;
-                          commands.push(command);
-                      }
-                  }
-              });
-              
-              if(commands.length > 0) {
-                  if (confirm(`将要执行以下 ${commands.length} 条命令：\n\n${commands.join('\n')}\n\n确定执行吗？`)) {
-                      await this.executeMultipleMvuCommands(commands);
-                      this.showTemporaryMessage('变量已成功保存！');
-                      // 刷新当前视图以反映更改
-                      const activeTab = document.querySelector('#variable-editor-modal .tab-btn.active');
-                      if(activeTab) {
-                          this.renderVariables(activeTab.dataset.category, document.getElementById('variable-search-input').value);
-                      }
-                  }
-              } else {
-                  this.showTemporaryMessage('没有检测到任何更改。');
-              }
-          },
-
-          // 添加新变量
-          addNewVariable() {
-              const path = prompt("请输入新变量的完整路径 (例如: 'myVar' 或 '人物关系列表.新角色'):");
-              if (!path) return;
-
-              const value = prompt(`请输入 '${path}' 的初始值:`, '""');
-              if (value === null) return;
-
-              // 动态创建一个新的可编辑项并添加到显示区域
-              const displayArea = document.getElementById('variable-display-area');
-              const newItemHtml = `
-                  <div class="readable-variable-item" style="margin-left: 0px; border: 2px dashed #c9aa71; padding: 10px; border-radius: 5px;">
-                      <div class="variable-title">${path}</div>
-                      <div class="variable-value">
-                          <textarea rows="1" data-path="${path}" data-is-new="true">${value}</textarea>
-                      </div>
+              variables.forEach(variable => {
+                html += `
+                  <div class="variable-item" data-path="${variable.path}">
+                    <span class="variable-name">${variable.name}</span>
+                    <span class="variable-value">${variable.displayValue}</span>
                   </div>
-              `;
-              displayArea.insertAdjacentHTML('afterbegin', newItemHtml);
+                `;
+              });
+
+              variableList.innerHTML = html;
+
+              // 绑定变量项点击事件
+              variableList.querySelectorAll('.variable-item').forEach(item => {
+                item.addEventListener('click', () => {
+                  this.selectVariable(item.dataset.path, item.querySelector('.variable-name').textContent);
+                });
+              });
+
+            } catch (error) {
+              console.error('加载变量列表时出错:', error);
+              variableList.innerHTML = '<div class="placeholder">加载变量时出错</div>';
+            }
           },
 
+          // 新增：根据分类获取变量
+          getVariablesByCategory(stat_data, category) {
+            const variables = [];
+
+            switch (category) {
+              case 'attributes':
+                // 基础属性
+                ['法力', '神海', '道心', '空速', '气运'].forEach(attr => {
+                  const value = this.SafeGetValue(stat_data, attr);
+                  if (value !== undefined) {
+                    variables.push({
+                      name: attr,
+                      path: attr,
+                      value: value,
+                      displayValue: this.formatDisplayValue(value)
+                    });
+                  }
+                });
+                // 当前属性
+                ['当前法力', '当前神海', '当前道心', '当前空速'].forEach(attr => {
+                  const value = this.SafeGetValue(stat_data, attr);
+                  if (value !== undefined) {
+                    variables.push({
+                      name: attr,
+                      path: attr,
+                      value: value,
+                      displayValue: this.formatDisplayValue(value)
+                    });
+                  }
+                });
+                break;
+
+              case 'cultivation':
+                ['当前境界', '境界映射', '修为进度', '修为瓶颈'].forEach(attr => {
+                  const value = this.SafeGetValue(stat_data, attr);
+                  if (value !== undefined) {
+                    variables.push({
+                      name: attr,
+                      path: attr,
+                      value: value,
+                      displayValue: this.formatDisplayValue(value)
+                    });
+                  }
+                });
+                break;
+
+              case 'equipment':
+                ['主修功法', '辅修心法', '武器', '防具', '饰品', '法宝栏'].forEach(attr => {
+                  const value = this.SafeGetValue(stat_data, attr);
+                  variables.push({
+                    name: attr,
+                    path: attr,
+                    value: value,
+                    displayValue: this.formatDisplayValue(value)
+                  });
+                });
+                break;
+
+              case 'items':
+                ['武器列表', '防具列表', '饰品列表', '法宝列表', '丹药列表', '其他列表'].forEach(listName => {
+                  const list = this.SafeGetValue(stat_data, listName);
+                  if (list && typeof list === 'object') {
+                    Object.keys(list).forEach(itemName => {
+                      if (itemName !== '$meta') {
+                        variables.push({
+                          name: `${listName}.${itemName}`,
+                          path: `${listName}.${itemName}`,
+                          value: list[itemName],
+                          displayValue: this.formatDisplayValue(list[itemName])
+                        });
+                      }
+                    });
+                  }
+                });
+                break;
+
+              case 'relationships':
+                const relationships = this.SafeGetValue(stat_data, '人物关系列表');
+                if (relationships && typeof relationships === 'object') {
+                  Object.keys(relationships).forEach(personName => {
+                    if (personName !== '$meta') {
+                      variables.push({
+                        name: `人物关系列表.${personName}`,
+                        path: `人物关系列表.${personName}`,
+                        value: relationships[personName],
+                        displayValue: this.formatDisplayValue(relationships[personName])
+                      });
+                    }
+                  });
+                }
+                break;
+
+              case 'world':
+                ['当前第x世', '当前时间纪年', '归墟空间', '本世归墟选择', '归墟充能时间',
+                 '心理年龄', '心理年龄上限', '生理年龄', '生理年龄上限', '当前位置'].forEach(attr => {
+                  const value = this.SafeGetValue(stat_data, attr);
+                  if (value !== undefined) {
+                    variables.push({
+                      name: attr,
+                      path: attr,
+                      value: value,
+                      displayValue: this.formatDisplayValue(value)
+                    });
+                  }
+                });
+                break;
+            }
+
+            return variables;
+          },
+
+          // 新增：格式化显示值
+          formatDisplayValue(value) {
+            if (value === null || value === undefined) {
+              return '未设置';
+            }
+            if (typeof value === 'object') {
+              if (Array.isArray(value)) {
+                return `[${value.length}项]`;
+              }
+              return `{${Object.keys(value).length}项}`;
+            }
+            const str = String(value);
+            return str.length > 30 ? str.substring(0, 30) + '...' : str;
+          },
+
+          // 新增：选择变量
+          selectVariable(path, name) {
+            // 更新选中状态
+            document.querySelectorAll('.variable-item').forEach(item => {
+              item.classList.remove('selected');
+            });
+            const selectedItem = document.querySelector(`[data-path="${path}"]`);
+            if (selectedItem) {
+              selectedItem.classList.add('selected');
+            }
+
+            // 设置当前选中的变量路径
+            this.currentSelectedPath = path;
+            this.currentSelectedName = name;
+            this.currentVariablePath = path;
+
+            // 将路径设置到手动模式的输入框中
+            const pathInput = document.getElementById('variable-path');
+            if (pathInput) {
+              pathInput.value = path;
+            }
+
+            // 自动加载变量值
+            this.loadVariableFromPath(path);
+          },
+
+          // 新增：从路径加载变量
+          async loadVariableFromPath(path) {
+            try {
+              console.log('[变量编辑器] 开始加载变量路径:', path);
+              
+              const messages = await getChatMessages(getCurrentMessageId());
+              if (!messages || messages.length === 0 || !messages[0].data || !messages[0].data.stat_data) {
+                document.getElementById('current-variable-value').textContent = '无法获取变量数据';
+                return;
+              }
+
+              const stat_data = messages[0].data.stat_data;
+              const value = this.getVariableByPath(stat_data, path);
+              
+              console.log('[变量编辑器] 获取到变量值:', value, '类型:', typeof value);
+              
+              document.getElementById('current-variable-value').textContent =
+                value !== undefined ? JSON.stringify(value, null, 2) : '变量不存在';
+              
+              // 同时更新手动模式的值输入框
+              const valueInput = document.getElementById('variable-value');
+              if (valueInput) {
+                if (value === null) {
+                  valueInput.value = 'null';
+                } else if (value === undefined) {
+                  valueInput.value = 'undefined';
+                } else if (typeof value === 'string') {
+                  valueInput.value = value;
+                } else {
+                  valueInput.value = JSON.stringify(value, null, 2);
+                }
+              }
+              
+              this.currentVariableValue = value;
+              this.currentVariablePath = path;
+              this.previewMvuCommand();
+              
+              console.log('[变量编辑器] 当前编辑模式:', this.currentEditMode);
+              
+              // 如果当前是可视化模式，更新可视化编辑器
+              if (this.currentEditMode === 'visual') {
+                console.log('[变量编辑器] 触发可视化编辑器更新');
+                this.updateVisualEditor();
+              }
+              
+            } catch (error) {
+              console.error('加载变量时出错:', error);
+              document.getElementById('current-variable-value').textContent = `加载出错: ${error.message}`;
+            }
+          },
+
+          // 新增：手动模式加载变量
+          loadVariableManual() {
+            const pathInput = document.getElementById('variable-path');
+            if (!pathInput) return;
+            
+            const path = pathInput.value.trim();
+            if (!path) {
+              alert('请输入变量路径');
+              return;
+            }
+
+            this.loadVariableFromPath(path);
+          },
+
+          // 新增：从模板选择变量
+          selectVariableFromTemplate(path) {
+            // 切换到手动模式
+            this.switchTab('manual');
+            
+            // 设置路径
+            const pathInput = document.getElementById('variable-path');
+            if (pathInput) {
+              pathInput.value = path;
+              this.loadVariableManual();
+            }
+          },
+
+          // 新增：设置操作类型
+          setOperationType(opType) {
+            // 更新按钮状态
+            document.querySelectorAll('.operation-btn').forEach(btn => {
+              btn.classList.remove('active');
+            });
+            document.getElementById(`op-${opType}`).classList.add('active');
+            
+            // 更新界面显示
+            const newValueContainer = document.querySelector('.new-value-input');
+            const newValueLabel = newValueContainer.querySelector('label');
+            const newValueTextarea = document.getElementById('new-variable-value');
+            
+            switch(opType) {
+              case 'set':
+                newValueLabel.textContent = '新值:';
+                newValueTextarea.placeholder = '输入新的值，支持JSON格式';
+                break;
+              case 'add':
+                newValueLabel.textContent = '增量值:';
+                newValueTextarea.placeholder = '输入要增加的数值（正数或负数）';
+                break;
+              case 'assign':
+                newValueLabel.textContent = '要分配的值:';
+                newValueTextarea.placeholder = '输入要分配的值或对象';
+                break;
+              case 'remove':
+                newValueLabel.textContent = '要移除的值:';
+                newValueTextarea.placeholder = '输入要移除的键名或索引（可选）';
+                break;
+            }
+            
+            this.currentOperation = opType;
+            this.previewMvuCommand();
+          },
+
+          // 新增：加载变量
+          async loadVariable() {
+            const path = document.getElementById('variable-path').value.trim();
+            if (!path) {
+              alert('请输入变量路径');
+              return;
+            }
+
+            try {
+              const messages = await getChatMessages(getCurrentMessageId());
+              if (!messages || messages.length === 0 || !messages[0].data || !messages[0].data.stat_data) {
+                document.getElementById('current-variable-value').textContent = '无法获取变量数据';
+                return;
+              }
+
+              const stat_data = messages[0].data.stat_data;
+              const value = this.getVariableByPath(stat_data, path);
+              
+              document.getElementById('current-variable-value').textContent =
+                value !== undefined ? JSON.stringify(value, null, 2) : '变量不存在';
+              
+              this.currentVariableValue = value;
+              this.previewMvuCommand();
+              
+            } catch (error) {
+              console.error('加载变量时出错:', error);
+              document.getElementById('current-variable-value').textContent = `加载出错: ${error.message}`;
+            }
+          },
+
+          // 新增：根据路径获取变量值（兼容数组格式变量）
+          getVariableByPath(data, path) {
+            try {
+              // 使用SafeGetValue处理路径
+              const value = this.SafeGetValue(data, path);
+              
+              // 如果是数组格式的变量（如[值, "描述"]），返回第一个元素
+              if (Array.isArray(value) && value.length >= 1) {
+                return value[0];
+              }
+              
+              return value;
+            } catch (error) {
+              console.error('获取变量值时出错:', error);
+              return undefined;
+            }
+          },
+
+          // 新增：预览MVU命令（兼容UpdateVariable格式）
+          previewMvuCommand() {
+            const path = document.getElementById('variable-path').value.trim();
+            const newValue = document.getElementById('new-variable-value').value.trim();
+            const reason = document.getElementById('change-reason').value.trim();
+            const operation = this.currentOperation || 'set';
+            
+            if (!path) {
+              document.getElementById('mvu-command-preview').textContent = '请先输入变量路径';
+              return;
+            }
+
+            let command = '';
+            const reasonComment = reason ? `//${reason}` : '';
+            
+            // 检查是否是数组格式变量（需要[0]访问）
+            const needsArrayAccess = this.isArrayFormatVariable(path);
+            const actualPath = needsArrayAccess ? `${path}[0]` : path;
+            
+            switch(operation) {
+              case 'set':
+                if (newValue) {
+                  if (this.currentVariableValue !== undefined) {
+                    command = `_.set('${actualPath}', ${JSON.stringify(this.currentVariableValue)}, ${this.parseValue(newValue)});${reasonComment}`;
+                  } else {
+                    command = `_.set('${actualPath}', ${this.parseValue(newValue)});${reasonComment}`;
+                  }
+                } else {
+                  command = '请输入新值';
+                }
+                break;
+              case 'add':
+                if (newValue) {
+                  command = `_.add('${actualPath}', ${this.parseValue(newValue)});${reasonComment}`;
+                } else {
+                  command = '请输入增量值';
+                }
+                break;
+              case 'assign':
+                if (path.includes('列表') && newValue) {
+                  // 对于列表类型，需要提供键和值
+                  try {
+                    const valueObj = JSON.parse(newValue);
+                    if (typeof valueObj === 'object' && valueObj.name) {
+                      command = `_.assign('${path}', '${valueObj.name}', ${newValue});${reasonComment}`;
+                    } else {
+                      command = `_.assign('${path}', ${this.parseValue(newValue)});${reasonComment}`;
+                    }
+                  } catch (e) {
+                    command = `_.assign('${path}', ${this.parseValue(newValue)});${reasonComment}`;
+                  }
+                } else if (newValue) {
+                  command = `_.assign('${actualPath}', ${this.parseValue(newValue)});${reasonComment}`;
+                } else {
+                  command = '请输入要分配的值';
+                }
+                break;
+              case 'remove':
+                if (newValue) {
+                  command = `_.remove('${path}', ${this.parseValue(newValue)});${reasonComment}`;
+                } else {
+                  command = `_.remove('${actualPath}');${reasonComment}`;
+                }
+                break;
+            }
+            
+            document.getElementById('mvu-command-preview').textContent = command;
+          },
+
+          // 新增：检查是否是数组格式变量
+          isArrayFormatVariable(path) {
+            const arrayFormatVars = [
+              '当前境界', '境界映射', '修为进度', '修为瓶颈',
+              '当前第x世', '当前时间纪年', '归墟空间', '本世归墟选择',
+              '归墟充能时间', '心理年龄', '心理年龄上限', '生理年龄', '生理年龄上限'
+            ];
+            return arrayFormatVars.includes(path);
+          },
+
+          // 新增：解析输入值
+          parseValue(valueStr) {
+            if (!valueStr) return 'null';
+            
+            // 尝试解析为JSON
+            try {
+              JSON.parse(valueStr);
+              return valueStr;
+            } catch (e) {
+              // 如果不是有效的JSON，作为字符串处理
+              return JSON.stringify(valueStr);
+            }
+          },
+
+          // 新增：执行MVU命令
+          async executeMvuCommand() {
+            const command = document.getElementById('mvu-command-preview').textContent;
+            
+            if (!command || command.includes('请')) {
+              alert('请先完善变量信息并预览命令');
+              return;
+            }
+
+            try {
+              // 确认执行
+              if (!confirm(`确定要执行以下MVU命令吗？\n\n${command}`)) {
+                return;
+              }
+
+              // 这里集成MVU命令执行功能
+              await this.executeMvuCommandDirect(command);
+              
+              alert('变量修改成功！');
+              this.closeModal('variable-editor-modal');
+              
+              // 刷新相关界面
+              if (this.currentMvuState && this.currentMvuState.stat_data) {
+                this.renderUI(this.currentMvuState.stat_data);
+              }
+              
+            } catch (error) {
+              console.error('执行MVU命令时出错:', error);
+              alert(`执行失败: ${error.message}`);
+            }
+          },
 
           // 新增：直接执行MVU命令的方法 (已更新支持静默和非持久化模式)
           async executeMvuCommandDirect(command, options = { silent: false, persist: true }) {
@@ -5178,6 +5685,504 @@
             }
           },
 
+          // 新增：编辑模式切换
+          switchEditMode(mode) {
+            console.log('[变量编辑器] 切换编辑模式到:', mode);
+            
+            // 更新按钮状态
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+              btn.classList.remove('active');
+            });
+            document.getElementById(`mode-${mode}`).classList.add('active');
+            
+            // 先设置编辑模式
+            this.currentEditMode = mode;
+            
+            // 切换显示内容
+            const rawMode = document.getElementById('raw-edit-mode');
+            const visualMode = document.getElementById('visual-edit-mode');
+            
+            if (mode === 'raw') {
+              rawMode.style.display = 'block';
+              visualMode.style.display = 'none';
+            } else {
+              rawMode.style.display = 'none';
+              visualMode.style.display = 'block';
+              console.log('[变量编辑器] 切换到可视化模式，当前变量值:', this.currentVariableValue);
+              this.updateVisualEditor();
+            }
+          },
+
+          // === 重构：智能可视化编辑器 ===
+          updateVisualEditor() {
+            const visualContent = document.getElementById('visual-editor-content');
+            
+            if (this.currentEditMode !== 'visual') {
+              return;
+            }
+            
+            if (!this.currentVariableValue && this.currentVariableValue !== 0 && this.currentVariableValue !== false) {
+              visualContent.innerHTML = '<div class="placeholder">请先加载变量以启用可视化编辑</div>';
+              return;
+            }
+
+            try {
+              const value = this.currentVariableValue;
+              console.log('[智能可视化编辑器] 渲染变量值:', value);
+              
+              // 初始化版本历史和撤销重做系统
+              this.initVersionHistory();
+              
+              const html = this.renderSmartVisualEditor(value, this.currentVariablePath || '根值');
+              visualContent.innerHTML = html;
+              this.bindSmartEditorEvents();
+            } catch (error) {
+              console.error('渲染智能可视化编辑器时出错:', error);
+              visualContent.innerHTML = `<div class="placeholder">数据解析失败，正在尝试兼容模式...<br>错误: ${error.message}</div>`;
+              // 降级到简单模式
+              this.renderFallbackEditor(value);
+            }
+          },
+
+          // 智能数据类型检测和渲染
+          renderSmartVisualEditor(value, path) {
+            // 检测数据类型并选择合适的渲染器
+            const dataType = this.detectDataType(value, path);
+            
+            switch (dataType) {
+              case 'character':
+                return this.renderCharacterCard(value, path);
+              case 'relationship_list':
+                return this.renderRelationshipList(value, path);
+              case 'attributes':
+                return this.renderAttributesPanel(value, path);
+              case 'simple_object':
+                return this.renderSimpleObject(value, path);
+              case 'array':
+                return this.renderSmartArray(value, path);
+              case 'primitive':
+                return this.renderPrimitiveValue(value, path);
+              default:
+                return this.renderGenericObject(value, path);
+            }
+          },
+
+          // 数据类型检测器
+          detectDataType(value, path) {
+            if (value === null || value === undefined) return 'primitive';
+            if (typeof value !== 'object') return 'primitive';
+            
+            // 检测人物数据
+            if (this.isCharacterData(value)) return 'character';
+            
+            // 检测人物关系列表
+            if (path && path.includes('人物关系列表')) return 'relationship_list';
+            
+            // 检测属性对象
+            if (this.isAttributesObject(value)) return 'attributes';
+            
+            // 检测数组
+            if (Array.isArray(value)) return 'array';
+            
+            // 检测简单对象
+            if (this.isSimpleObject(value)) return 'simple_object';
+            
+            return 'generic_object';
+          },
+
+          // 人物数据检测
+          isCharacterData(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+            
+            const characterFields = ['身份背景', '性格', '外貌', '称呼', 'attributes', 'tier', '等级', 'favorability'];
+            const hasCharacterFields = characterFields.some(field => value.hasOwnProperty(field));
+            
+            return hasCharacterFields;
+          },
+
+          // 属性对象检测
+          isAttributesObject(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+            
+            const keys = Object.keys(value);
+            const numericKeys = keys.filter(key => typeof value[key] === 'number');
+            
+            // 如果大部分字段都是数值，认为是属性对象
+            return numericKeys.length > keys.length * 0.6;
+          },
+
+          // 简单对象检测
+          isSimpleObject(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+            
+            const keys = Object.keys(value);
+            return keys.length <= 10 && keys.every(key =>
+              typeof value[key] === 'string' ||
+              typeof value[key] === 'number' ||
+              typeof value[key] === 'boolean'
+            );
+          },
+
+          // === 专用渲染器实现 ===
+          
+          // 人物卡片渲染器
+          renderCharacterCard(character, path) {
+            const name = character.称呼 || character.name || '未命名角色';
+            const identity = character.身份背景 || character.identity || '';
+            const tier = character.tier || '';
+            const level = character.等级 || character.level || '';
+            
+            let html = `<div class="character-card" data-path="${path}">
+              <div class="character-header">
+                <div class="character-avatar">${name.charAt(0)}</div>
+                <div class="character-basic-info">
+                  <div class="character-name" contenteditable="true" data-field="name">${name}</div>
+                  <div class="character-title">${tier} ${level}</div>
+                </div>
+              </div>`;
+
+            // 属性面板
+            if (character.attributes) {
+              html += this.renderAttributesPanel(character.attributes, `${path}.attributes`);
+            }
+
+            // 基本信息
+            html += `<div class="details-section">
+              <div class="details-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                <span>基本信息</span>
+                <span>▼</span>
+              </div>
+              <div class="details-content">`;
+
+            const basicFields = [
+              { key: '身份背景', label: '身份背景', type: 'textarea' },
+              { key: '性格', label: '性格', type: 'textarea' },
+              { key: '外貌', label: '外貌', type: 'textarea' },
+              { key: 'tier', label: '修为境界', type: 'select', options: ['凡人', '练气', '筑基', '金丹', '元婴', '化神'] },
+              { key: '等级', label: '等级', type: 'select', options: ['初期', '中期', '后期', '大圆满'] },
+              { key: 'favorability', label: '好感度', type: 'slider', min: -100, max: 100 },
+              { key: 'relationship', label: '关系', type: 'text' }
+            ];
+
+            basicFields.forEach(field => {
+              const value = character[field.key] || '';
+              html += this.renderFormField(field, value, `${path}.${field.key}`);
+            });
+
+            html += `</div></div>`;
+
+            // 人物关系列表
+            if (character.人物关系列表) {
+              html += this.renderRelationshipList(character.人物关系列表, `${path}.人物关系列表`);
+            }
+
+            // 其他详细信息
+            const otherFields = Object.keys(character).filter(key =>
+              !['称呼', 'name', '身份背景', '性格', '外貌', 'tier', '等级', 'favorability', 'relationship', 'attributes', '人物关系列表'].includes(key)
+            );
+
+            if (otherFields.length > 0) {
+              html += `<div class="details-section">
+                <div class="details-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                  <span>其他信息</span>
+                  <span>▼</span>
+                </div>
+                <div class="details-content">`;
+
+              otherFields.forEach(key => {
+                const value = character[key];
+                html += this.renderGenericField(key, value, `${path}.${key}`);
+              });
+
+              html += `</div></div>`;
+            }
+
+            html += `<div class="action-buttons">
+              <button class="action-btn secondary" onclick="guixuApp.revertField('${path}')">撤销</button>
+              <button class="action-btn" onclick="guixuApp.saveField('${path}')">保存</button>
+            </div></div>`;
+
+            return html;
+          },
+
+          // 属性面板渲染器
+          renderAttributesPanel(attributes, path) {
+            let html = `<div class="attributes-panel" data-path="${path}">`;
+            
+            Object.entries(attributes).forEach(([key, value]) => {
+              const numValue = typeof value === 'number' ? value : parseInt(value) || 0;
+              const maxValue = this.getAttributeMaxValue(key, numValue);
+              
+              html += `<div class="attribute-item">
+                <label class="attribute-label">${key}</label>
+                <div class="attribute-value">
+                  <input type="range" class="attribute-slider"
+                         min="0" max="${maxValue}" value="${numValue}"
+                         data-path="${path}.${key}" data-type="number">
+                  <input type="number" class="attribute-input"
+                         value="${numValue}" min="0" max="${maxValue}"
+                         data-path="${path}.${key}" data-type="number">
+                </div>
+              </div>`;
+            });
+            
+            html += `</div>`;
+            return html;
+          },
+
+          // 关系列表渲染器 - 重构为现有UI风格
+          renderRelationshipList(relationships, path) {
+            if (!relationships || typeof relationships !== 'object') {
+              return `<div class="relationships-container" data-path="${path}">
+                <div class="empty-relationships-state">
+                  <div class="empty-state-icon">👥</div>
+                  <div class="empty-state-title">暂无人物关系</div>
+                  <div class="empty-state-description">
+                    <p>点击下方按钮添加第一个人物关系</p>
+                  </div>
+                  <div class="action-buttons">
+                    <button class="action-btn" onclick="guixuApp.addRelationship('${path}')">添加关系</button>
+                  </div>
+                </div>
+              </div>`;
+            }
+
+            // 使用现有人物关系UI风格
+            let html = `<div class="relationships-container" data-path="${path}">
+              <div class="relationships-header">
+                <div class="relationship-tabs">
+                  <div class="tab-btn active">
+                    <span class="tab-icon">👥</span>
+                    <span class="tab-text">人物关系</span>
+                    <span class="tab-count">${Object.keys(relationships).length}</span>
+                  </div>
+                </div>
+                <div class="relationships-controls">
+                  <div class="action-buttons">
+                    <button class="action-btn" onclick="guixuApp.addRelationship('${path}')">添加关系</button>
+                  </div>
+                </div>
+              </div>
+              <div class="relationships-content">
+                <div class="relationships-grid">`;
+
+            // 渲染每个人物关系卡片
+            Object.entries(relationships).forEach(([name, info]) => {
+              html += this.renderSingleRelationshipCard(name, info, path);
+            });
+
+            html += `</div></div></div>`;
+            return html;
+          },
+
+          // 渲染单个人物关系卡片
+          renderSingleRelationshipCard(name, info, basePath) {
+            const isObject = typeof info === 'object' && info !== null;
+            const relationship = isObject ? (info.relationship || '未知关系') : (typeof info === 'string' ? info : '未知关系');
+            const favorability = isObject ? (info.favorability || 0) : 0;
+            const tier = isObject ? (info.tier || '') : '';
+            const level = isObject ? (info.等级 || info.level || '') : '';
+            const identity = isObject ? (info.身份背景 || info.identity || '') : '';
+            const personality = isObject ? (info.性格 || info.personality || '') : '';
+            const appearance = isObject ? (info.外貌 || info.appearance || '') : '';
+            const calling = isObject ? (info.称呼 || info.calling || name) : name;
+
+            // 计算好感度进度条宽度
+            const favorabilityPercent = Math.max(0, Math.min(100, (favorability + 100) / 2));
+
+            let html = `<div class="relationship-card" data-name="${name}" data-path="${basePath}.${name}">
+              <div class="relationship-main">
+                <div class="relationship-header">
+                  <div class="header-left">
+                    <div class="character-name" contenteditable="true" data-field="name" data-original-name="${name}">${name}</div>
+                    <div class="character-relationship">${relationship}</div>
+                  </div>
+                  <div class="cultivation-info">${tier} ${level}</div>
+                </div>
+
+                <div class="favorability-section">
+                  <div class="favorability-value">好感度: ${favorability}</div>
+                  <div class="favorability-bar">
+                    <div class="favorability-progress" style="width: ${favorabilityPercent}%"></div>
+                  </div>
+                </div>`;
+
+            // 基本信息编辑区域
+            html += `<div class="relationship-details">
+              <button class="details-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                基本信息
+              </button>
+              <div class="details-content hidden">
+                <div class="details-row">
+                  <div class="smart-form-group">
+                    <label class="smart-form-label">称呼</label>
+                    <input type="text" class="attribute-input" value="${calling}"
+                           data-path="${basePath}.${name}.称呼" data-field="称呼">
+                  </div>
+                  <div class="smart-form-group">
+                    <label class="smart-form-label">关系</label>
+                    <input type="text" class="attribute-input" value="${relationship}"
+                           data-path="${basePath}.${name}.relationship" data-field="relationship">
+                  </div>
+                  <div class="smart-form-group">
+                    <label class="smart-form-label">修为境界</label>
+                    <select class="smart-select" data-path="${basePath}.${name}.tier" data-field="tier">
+                      <option value="">选择境界</option>
+                      <option value="凡人" ${tier === '凡人' ? 'selected' : ''}>凡人</option>
+                      <option value="练气" ${tier === '练气' ? 'selected' : ''}>练气</option>
+                      <option value="筑基" ${tier === '筑基' ? 'selected' : ''}>筑基</option>
+                      <option value="金丹" ${tier === '金丹' ? 'selected' : ''}>金丹</option>
+                      <option value="元婴" ${tier === '元婴' ? 'selected' : ''}>元婴</option>
+                      <option value="化神" ${tier === '化神' ? 'selected' : ''}>化神</option>
+                      <option value="合体" ${tier === '合体' ? 'selected' : ''}>合体</option>
+                      <option value="飞升" ${tier === '飞升' ? 'selected' : ''}>飞升</option>
+                    </select>
+                  </div>
+                  <div class="smart-form-group">
+                    <label class="smart-form-label">等级</label>
+                    <select class="smart-select" data-path="${basePath}.${name}.等级" data-field="等级">
+                      <option value="">选择等级</option>
+                      <option value="初期" ${level === '初期' ? 'selected' : ''}>初期</option>
+                      <option value="中期" ${level === '中期' ? 'selected' : ''}>中期</option>
+                      <option value="后期" ${level === '后期' ? 'selected' : ''}>后期</option>
+                      <option value="大圆满" ${level === '大圆满' ? 'selected' : ''}>大圆满</option>
+                    </select>
+                  </div>
+                  <div class="smart-form-group">
+                    <label class="smart-form-label">好感度 (${favorability})</label>
+                    <div class="attribute-value">
+                      <input type="range" class="attribute-slider" min="-100" max="100" value="${favorability}"
+                             data-path="${basePath}.${name}.favorability" data-field="favorability" data-type="number">
+                      <input type="number" class="attribute-input" value="${favorability}" min="-100" max="100"
+                             data-path="${basePath}.${name}.favorability" data-field="favorability" data-type="number" style="width: 80px;">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+
+            // 详细信息编辑区域
+            if (identity || personality || appearance) {
+              html += `<div class="relationship-details">
+                <button class="details-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                  详细信息
+                </button>
+                <div class="details-content hidden">
+                  <div class="details-row">`;
+
+              if (identity) {
+                html += `<div class="smart-form-group">
+                  <label class="smart-form-label">身份背景</label>
+                  <textarea class="rich-text-editor" data-path="${basePath}.${name}.身份背景" data-field="身份背景" rows="3">${identity}</textarea>
+                </div>`;
+              }
+
+              if (personality) {
+                html += `<div class="smart-form-group">
+                  <label class="smart-form-label">性格</label>
+                  <textarea class="rich-text-editor" data-path="${basePath}.${name}.性格" data-field="性格" rows="2">${personality}</textarea>
+                </div>`;
+              }
+
+              if (appearance) {
+                html += `<div class="smart-form-group">
+                  <label class="smart-form-label">外貌</label>
+                  <textarea class="rich-text-editor" data-path="${basePath}.${name}.外貌" data-field="外貌" rows="2">${appearance}</textarea>
+                </div>`;
+              }
+
+              html += `</div></div></div>`;
+            }
+
+            // 操作按钮
+            html += `<div class="action-buttons">
+              <button class="action-btn secondary" onclick="guixuApp.removeRelationship('${basePath}', '${name}')">删除</button>
+              <button class="action-btn" onclick="guixuApp.saveRelationshipChanges('${basePath}', '${name}')">保存修改</button>
+            </div>`;
+
+            html += `</div></div>`;
+            return html;
+          },
+
+          // 表单字段渲染器
+          renderFormField(field, value, path) {
+            let html = `<div class="smart-form-group">
+              <label class="smart-form-label">${field.label}</label>`;
+
+            switch (field.type) {
+              case 'textarea':
+                html += `<textarea class="rich-text-editor" data-path="${path}" rows="3">${value}</textarea>`;
+                break;
+              case 'select':
+                html += `<select class="smart-select" data-path="${path}">`;
+                field.options.forEach(option => {
+                  const selected = option === value ? 'selected' : '';
+                  html += `<option value="${option}" ${selected}>${option}</option>`;
+                });
+                html += `</select>`;
+                break;
+              case 'slider':
+                const numValue = typeof value === 'number' ? value : parseInt(value) || field.min || 0;
+                html += `<div class="attribute-value">
+                  <input type="range" class="attribute-slider"
+                         min="${field.min}" max="${field.max}" value="${numValue}"
+                         data-path="${path}" data-type="number">
+                  <input type="number" class="attribute-input"
+                         value="${numValue}" min="${field.min}" max="${field.max}"
+                         data-path="${path}" data-type="number">
+                </div>`;
+                break;
+              default:
+                html += `<input type="text" class="attribute-input" value="${value}" data-path="${path}">`;
+            }
+
+            html += `</div>`;
+            return html;
+          },
+
+          // 通用字段渲染器
+          renderGenericField(key, value, path) {
+            if (typeof value === 'object' && value !== null) {
+              return `<div class="smart-form-group">
+                <label class="smart-form-label">${key}</label>
+                <textarea class="rich-text-editor" data-path="${path}" rows="2">${JSON.stringify(value, null, 2)}</textarea>
+              </div>`;
+            } else {
+              return `<div class="smart-form-group">
+                <label class="smart-form-label">${key}</label>
+                <input type="text" class="attribute-input" value="${value}" data-path="${path}">
+              </div>`;
+            }
+          },
+
+          // 获取属性最大值
+          getAttributeMaxValue(attributeName, currentValue) {
+            const maxValues = {
+              '法力': Math.max(10000, currentValue * 2),
+              '神海': Math.max(1000, currentValue * 2),
+              '道心': 100,
+              '空速': 100,
+              '气运': 100,
+              '体质': 100,
+              '灵根': 100
+            };
+            return maxValues[attributeName] || Math.max(1000, currentValue * 2);
+          },
+
+          // 降级渲染器（兼容模式）
+          renderFallbackEditor(value) {
+            const visualContent = document.getElementById('visual-editor-content');
+            try {
+              const html = this.renderVisualEditor(value, this.currentVariablePath || '根值');
+              visualContent.innerHTML = html;
+              this.bindVisualEditorEvents();
+            } catch (error) {
+              visualContent.innerHTML = `<div class="placeholder">
+                数据格式过于复杂，请使用原始模式编辑<br>
+                <button class="action-btn" onclick="guixuApp.switchEditMode('raw')">切换到原始模式</button>
+              </div>`;
+            }
+          },
 
           // === 智能事件绑定系统 ===
           bindSmartEditorEvents() {
@@ -6051,9 +7056,6 @@
                     modalContent.style.setProperty('max-height', 'none', 'important');
                   }
 
-                  // 绑定所有关系面板的交互事件
-                  this.bindRelationshipEvents();
-
               } catch (error) {
                   console.error('加载人物关系时出错:', error);
                   listPanel.innerHTML = `<p class="modal-placeholder">加载人物关系时出错: ${error.message}</p>`;
@@ -6207,7 +7209,6 @@
                        <button class="tab-button" data-tab="inventory">储物袋</button>
                        <button class="tab-button" data-tab="social">社交</button>
                        <button class="tab-button" data-tab="memory">记忆</button>
-                       <button class="tab-button" data-tab="advanced">高级</button>
                    </div>
                    <div class="details-content" style="display: flex; flex-direction: column; flex-grow: 1; min-height: 0;">
                        <div class="tab-pane active" id="tab-attributes">
@@ -6257,14 +7258,6 @@
                        <div class="tab-pane" id="tab-inventory">${this._renderInventorySection(characterData)}</div>
                        <div class="tab-pane" id="tab-social">${this._renderSocialSection(characterData)}</div>
                        <div class="tab-pane" id="tab-memory">${this._renderMemorySection(characterData)}</div>
-                       <div class="tab-pane" id="tab-advanced">
-                           <div class="info-section">
-                               <h4>高级指令</h4>
-                               <div class="action-buttons" style="padding-top: 15px;">
-                                   <button class="action-btn" id="btn-enhance-character">完善人设</button>
-                               </div>
-                           </div>
-                       </div>
                    </div>
                `;
                detailsPanel.innerHTML = html;
@@ -6329,21 +7322,6 @@
                        if(targetPane) targetPane.classList.add('active');
                    });
                });
-
-               // 绑定高级操作按钮事件
-               const enhanceBtn = detailsPanel.querySelector('#btn-enhance-character');
-               if (enhanceBtn) {
-                   enhanceBtn.addEventListener('click', () => {
-                       const command = {
-                           action: 'send_as_is',
-                           text: `[指令] 完善 ${characterName} 的人设，请从武器、装备、饰品、防具、主修功法、辅修功法、真气、筑基奇物、洞天、神妙、本命神妙、仙灵之气、储物袋（至少5件物品）、人物关系网络等方面，分步使用指令进行填充`,
-                           command: '人设指令'
-                       };
-                       this.pendingActions.push(command);
-                       this.savePendingActions();
-                       this.showTemporaryMessage(`已添加指令：完善 ${characterName} 的人设`);
-                   });
-               }
            },
 
           _renderSocialSection(characterData) {
@@ -6947,15 +7925,6 @@
                           this.renderCharacterDetails(card.dataset.characterName);
                       }
                   });
-              }
-
-              // “添加”按钮事件绑定
-              const addIcon = document.querySelector('#relationships-modal .header-icon[title="添加"]');
-              if (addIcon && !addIcon.dataset.listenerAttached) {
-                  addIcon.addEventListener('click', () => {
-                      this.showRelationshipEditor();
-                  });
-                  addIcon.dataset.listenerAttached = 'true';
               }
 
               // 排序下拉菜单事件绑定
@@ -8746,9 +9715,6 @@ renderIntimateRelationships(relationships) {
           },
 
          async showNovelMode() {
-          if (this.isFromSettingsModal) {
-            this.closeModal('settings-modal');
-          }
           this.openModal('novel-mode-modal');
           this.loadUnifiedIndex(); // 修复：使用统一序号而不是独立序号
           // 确保小说模式界面的序号输入框显示统一序号
@@ -10958,12 +11924,12 @@ renderIntimateRelationships(relationships) {
                } else {
                  // 默认设置
                  this.worldbookSettings = {
-                   journey: { position: 'before_character_definition', order: 17, depth: 1, type: 'selective', enabled: false },
-                   pastLives: { position: 'before_character_definition', order: 16, depth: 1, type: 'constant', enabled: false },
+                   journey: { position: 'before_character_definition', order: 17, depth: 1, type: 'selective', enabled: false }, // 本世历程作为数据源，默认禁用
+                   pastLives: { position: 'before_character_definition', order: 16, depth: 1, type: 'constant', enabled: true },
                    novel: { position: 'before_character_definition', order: 18, depth: 1, type: 'selective', enabled: false },
-                   segmented: { position: 'at_depth_as_system', order: 3, depth: 4, type: 'constant', enabled: true },
-                   largeSummary: { position: 'at_depth_as_system', order: 1, depth: 4, type: 'constant', enabled: true },
-                   smallSummary: { position: 'at_depth_as_system', order: 2, depth: 4, type: 'constant', enabled: true },
+                   segmented: { position: 'before_character_definition', order: 21, depth: 1, type: 'constant', enabled: true },
+                   largeSummary: { position: 'before_character_definition', order: 19, depth: 1, type: 'constant', enabled: true },
+                   smallSummary: { position: 'before_character_definition', order: 20, depth: 1, type: 'constant', enabled: true },
                  };
                }
                
@@ -11011,12 +11977,12 @@ renderIntimateRelationships(relationships) {
                    document.getElementById('small-summary-enabled').checked = this.worldbookSettings.smallSummary.enabled;
                  }
                  
-                 // 更新深度输入框的显示状态
+                 // 更新深度输入框的禁用状态
                  ['journey', 'past-lives', 'novel', 'segmented', 'large-summary', 'small-summary'].forEach(type => {
                    const positionSelect = document.getElementById(`${type}-position`);
-                   const depthContainer = document.getElementById(`${type}-depth-container`);
-                   if (positionSelect && depthContainer) {
-                     depthContainer.style.display = positionSelect.value.startsWith('at_depth') ? 'contents' : 'none';
+                   const depthInput = document.getElementById(`${type}-depth`);
+                   if (positionSelect && depthInput) {
+                     depthInput.disabled = !positionSelect.value.startsWith('at_depth');
                    }
                  });
                }
@@ -11034,12 +12000,12 @@ renderIntimateRelationships(relationships) {
              try {
                localStorage.removeItem('guixu_worldbook_settings');
                this.worldbookSettings = {
-                   journey: { position: 'before_character_definition', order: 17, depth: 1, type: 'selective', enabled: false },
-                   pastLives: { position: 'before_character_definition', order: 16, depth: 1, type: 'constant', enabled: false },
-                   novel: { position: 'before_character_definition', order: 18, depth: 1, type: 'selective', enabled: false },
-                   segmented: { position: 'at_depth_as_system', order: 3, depth: 4, type: 'constant', enabled: true },
-                   largeSummary: { position: 'at_depth_as_system', order: 1, depth: 4, type: 'constant', enabled: true },
-                   smallSummary: { position: 'at_depth_as_system', order: 2, depth: 4, type: 'constant', enabled: true },
+                 journey: { position: 'before_character_definition', order: 17, depth: 1, type: 'selective' },
+                 pastLives: { position: 'before_character_definition', order: 16, depth: 1, type: 'constant' },
+                 novel: { position: 'before_character_definition', order: 18, depth: 1, type: 'selective' },
+                 segmented: { position: 'before_character_definition', order: 21, depth: 1, type: 'constant' },
+                 largeSummary: { position: 'before_character_definition', order: 19, depth: 1, type: 'constant' },
+                 smallSummary: { position: 'before_character_definition', order: 20, depth: 1, type: 'constant' },
                };
              } catch (e) {
                console.error('重置世界书设置失败:', e);
@@ -11465,7 +12431,7 @@ renderIntimateRelationships(relationships) {
            },
 
           // 初始化背景图系统
-          async initBackgroundSystem() {
+          initBackgroundSystem() {
             console.log('[归墟背景] 初始化背景图系统...');
             
             // 首先加载背景图设置
@@ -11479,9 +12445,7 @@ renderIntimateRelationships(relationships) {
             // 文字设置已在主初始化函数中加载，此处不再重复调用
 
             // 清理过期的字体缓存
-            if (this.dbAvailable) {
-              await this.cleanupExpiredFontCache();
-            }
+            this.cleanupExpiredFontCache();
             
             // 如果没有用户背景图，添加预设背景图
             if (this.backgroundImages.length === 0) {
@@ -12551,6 +13515,7 @@ renderIntimateRelationships(relationships) {
               .replace(/</g, '&lt;')
               .replace(/>/g, '&gt;')
               .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
           },
 
           // --- 新增：文本净化辅助函数 ---
@@ -12562,7 +13527,7 @@ renderIntimateRelationships(relationships) {
               const gameText = this._extractLastTagContent('gametxt', aiResponse);
               if (gameText !== null) {
                   // 新增：移除HTML注释，修复因注释导致的存档逻辑崩溃问题
-                  return gameText.replace(/<!--[\s\S]*?-->/g, '').trim();
+                  return gameText.replace(new RegExp('<!--[\\s\\S]*?-->', 'g'), '').trim();
               }
 
               // 修复：如果找不到 <gametxt>，则直接返回原始响应，避免备用方案错误地破坏其他HTML标签。
@@ -17992,6 +18957,54 @@ async updateUnifiedSummaryDisplay() {
           },
 
 
+                     async storeAvatarInDB(record) {
+                         try {
+                             const db = await this.initDB();
+                             const transaction = db.transaction(['character_avatars'], 'readwrite');
+                             const store = transaction.objectStore('character_avatars');
+          
+                             const getRequest = store.get(record.characterName);
+          
+                             getRequest.onsuccess = () => {
+                                 const existingRecord = getRequest.result || {};
+                                 
+                                 const finalRecord = {
+                                     characterName: record.characterName,
+                                     avatarImage: record.avatarImage !== undefined ? record.avatarImage : existingRecord.avatarImage,
+                                     backgroundImage: record.backgroundImage !== undefined ? record.backgroundImage : existingRecord.backgroundImage,
+                                     backgroundOpacity: record.backgroundOpacity !== undefined ? record.backgroundOpacity : existingRecord.backgroundOpacity || 0.5,
+                                     timestamp: Date.now()
+                                 };
+          
+                                 const putRequest = store.put(finalRecord);
+                                 putRequest.onerror = () => {
+                                     console.error('Failed to store avatar in DB:', putRequest.error);
+                                 };
+                             };
+                             getRequest.onerror = () => {
+                                  console.error('Failed to get existing avatar record for update:', getRequest.error);
+                             };
+          
+                         } catch (error) {
+                             console.error('Failed to open DB for storing avatar:', error);
+                         }
+                     },
+          
+                     async getAvatarFromDB(characterName) {
+                         try {
+                             const db = await this.initDB();
+                             const transaction = db.transaction(['character_avatars'], 'readonly');
+                             const store = transaction.objectStore('character_avatars');
+                             const getRequest = store.get(characterName);
+                             return new Promise((resolve, reject) => {
+                                 getRequest.onsuccess = () => resolve(getRequest.result);
+                                 getRequest.onerror = () => reject(getRequest.error);
+                             });
+                         } catch (error) {
+                             console.error('Failed to get avatar from DB:', error);
+                             return null; // 出错时返回null以防止调用者崩溃
+                         }
+                     },
 
           previewBackground(bgId) {
             const bg = this.backgroundImages.find(b => b.id === bgId);
@@ -18538,7 +19551,8 @@ async updateUnifiedSummaryDisplay() {
 
           // 新增：绑定键盘快捷键
           bindKeyboardShortcuts() {
-            document.addEventListener('keydown', (e) => {
+            // 将事件处理函数绑定到 this 并保存引用
+            this.boundHandleKeydown = (e) => {
               // 检查快捷键是否已启用
               if (!this.isKeyboardShortcutsEnabled) {
                 return; // 快捷键已禁用
@@ -18602,7 +19616,8 @@ async updateUnifiedSummaryDisplay() {
                   console.log('[归墟快捷键] T键 - 切换设置界面');
                   break;
               }
-            });
+            };
+            document.addEventListener('keydown', this.boundHandleKeydown);
 
             console.log('[归墟快捷键] 键盘快捷键绑定完成');
             console.log('[归墟快捷键] E-背包, R-人物关系, D-存档读档, T-设置, Ctrl+A/D-面板折叠');
@@ -20405,6 +21420,9 @@ async updateUnifiedSummaryDisplay() {
           }, };
 
        // 将GuixuManager暴露到全局作用域，以便onclick事件可以访问
+       if (window.GuixuManager && typeof window.GuixuManager.destroy === 'function') {
+         window.GuixuManager.destroy();
+       }
        window.GuixuManager = GuixuManager;
  
          // --- Entry Point ---
@@ -20430,3 +21448,14 @@ async updateUnifiedSummaryDisplay() {
   
           // 事件监听已在 GuixuManager.init() 中处理，此处不再需要
       })();
+
+
+
+
+
+
+
+
+
+
+
