@@ -21448,3 +21448,14 @@ async updateUnifiedSummaryDisplay() {
   
           // 事件监听已在 GuixuManager.init() 中处理，此处不再需要
       })();
+
+
+
+
+
+
+
+
+
+
+
