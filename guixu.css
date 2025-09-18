@@ -318,36 +318,19 @@
         grid-template-columns: 1fr 1fr;
         gap: 6px;
       }
-
-      .equipment-slot-wrapper {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .equipment-effects {
-        font-size: 11px;
-        color: #a09c91; /* A softer, less prominent color */
-        text-align: center;
-        padding: 2px 4px;
-        margin-top: 4px;
-        min-height: 15px; /* Ensure it takes up space even when empty */
-        line-height: 1.3;
-        background: rgba(0, 0, 0, 0.1);
-        border-radius: 3px;
-      }
-      
       .equipment-slot {
-        aspect-ratio: 1;
-        background: rgba(0, 0, 0, 0.5);
-        border: 1px dashed rgba(201, 170, 113, 0.5);
-        border-radius: 5px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 10px;
-        color: #8b7355;
-        cursor: pointer;
-        transition: background-color 0.3s;
+          position: relative; /* 为子元素绝对定位提供基准 */
+          aspect-ratio: 1;
+          background: rgba(0, 0, 0, 0.5);
+          border: 1px dashed rgba(201, 170, 113, 0.5);
+          border-radius: 5px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          color: #8b7355;
+          cursor: pointer;
+          transition: background-color 0.3s;
       }
       .equipment-slot.equipped {
         border-style: solid;
@@ -8015,4 +7998,27 @@ body > #relationships-modal .modal-content {
 .character-card .info .details {
   font-size: 12px;
   color: #aaa;
+}
+/* 长按卸载 - 边框辉光动画 */
+@keyframes long-press-border-glow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.equipment-slot.long-pressing {
+  overflow: visible; /* 允许辉光溢出 */
+}
+
+.equipment-slot.long-pressing::before {
+  content: '';
+  position: absolute;
+  left: -50%;
+  top: -50%;
+  width: 200%;
+  height: 200%;
+  background-repeat: no-repeat;
+  background-size: 50% 50%, 50% 50%;
+  background-position: 0 0, 100% 0, 100% 100%, 0 100%;
+  background-image: linear-gradient(#c9aa71, #c9aa71), linear-gradient(#8b7355, #8b7355), linear-gradient(#c9aa71, #c9aa71), linear-gradient(#8b7355, #8b7355);
+  animation: long-press-border-glow 0.8s linear forwards;
 }
