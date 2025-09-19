@@ -747,15 +747,7 @@
         padding: 20px;
         width: 90%;
         max-width: 800px;
-        height: 90%;
-      /* --- 人物关系UI优化 (v3) --- */
-      .relationships-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        padding-right: 8px;
-      }
-      
+        height: 90%;      
       .relationship-card {
         background: linear-gradient(135deg, rgba(26, 26, 46, 0.9), rgba(30, 30, 50, 0.8));
         border: 1px solid rgba(85, 68, 51, 0.6);
@@ -8005,20 +7997,3 @@ body > #relationships-modal .modal-content {
   to { transform: rotate(360deg); }
 }
 
-.equipment-slot.long-pressing {
-  overflow: visible; /* 允许辉光溢出 */
-}
-
-.equipment-slot.long-pressing::before {
-  content: '';
-  position: absolute;
-  left: -50%;
-  top: -50%;
-  width: 200%;
-  height: 200%;
-  background-repeat: no-repeat;
-  background-size: 50% 50%, 50% 50%;
-  background-position: 0 0, 100% 0, 100% 100%, 0 100%;
-  background-image: linear-gradient(#c9aa71, #c9aa71), linear-gradient(#8b7355, #8b7355), linear-gradient(#c9aa71, #c9aa71), linear-gradient(#8b7355, #8b7355);
-  animation: long-press-border-glow 0.8s linear forwards;
-}
