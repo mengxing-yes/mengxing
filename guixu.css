@@ -7997,3 +7997,235 @@ body > #relationships-modal .modal-content {
   to { transform: rotate(360deg); }
 }
 
+
+
+.equipment-slot.long-pressing {
+  overflow: visible; /* 允许辉光溢出 */
+}
+
+.equipment-slot.long-pressing::before {
+  content: '';
+  position: absolute;
+  left: -50%;
+  top: -50%;
+  width: 200%;
+  height: 200%;
+  background-repeat: no-repeat;
+  background-size: 50% 50%, 50% 50%;
+  background-position: 0 0, 100% 0, 100% 100%, 0 100%;
+  background-image: linear-gradient(#c9aa71, #c9aa71), linear-gradient(#8b7355, #8b7355), linear-gradient(#c9aa71, #c9aa71), linear-gradient(#8b7355, #8b7355);
+  animation: long-press-border-glow 0.8s linear forwards;
+}
+/* 新增：手风琴式存档界面样式 */
+.accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.accordion-item {
+    background: rgba(20, 20, 30, 0.7);
+    border: 1px solid #8b7355;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.accordion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    cursor: pointer;
+    background: rgba(30, 30, 45, 0.8);
+}
+
+.save-header-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    flex-grow: 1;
+}
+
+.save-header-top {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.save-summary {
+    font-size: 13px;
+    color: #a09c91;
+    margin-left: 5px;
+}
+
+.save-name {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.save-time {
+    font-size: 12px;
+    color: #a09c91;
+}
+
+.save-type {
+    font-size: 12px;
+    font-style: italic;
+    color: #a09c91;
+}
+
+.save-header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-load-new, .btn-delete-new, .btn-rename-new, .btn-export-new {
+    padding: 6px 12px;
+    font-size: 12px;
+    border: 1px solid #c9aa71;
+    background: transparent;
+    color: #c9aa71;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-load-new:hover, .btn-delete-new:hover, .btn-rename-new:hover, .btn-export-new:hover {
+    background: #c9aa71;
+    color: #1a1a2e;
+}
+
+.btn-delete-new {
+    border-color: #8b0000;
+    color: #8b0000;
+}
+
+.btn-delete-new:hover {
+    background: #8b0000;
+    color: white;
+}
+
+.accordion-content {
+    padding: 15px;
+    display: none; /* 默认隐藏 */
+    background: rgba(10, 10, 20, 0.7);
+    border-top: 1px solid #8b7355;
+}
+
+.accordion-item.active .accordion-content {
+    display: block; /* 激活时显示 */
+}
+
+.content-preview {
+    margin-bottom: 10px;
+}
+
+.content-preview summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #e0dcd1;
+}
+
+.content-preview summary:hover {
+    color: #ffd700;
+}
+
+.char-count {
+    font-size: 12px;
+    color: #a09c91;
+    margin-left: 10px;
+}
+
+.content-full {
+    padding: 10px;
+    margin-top: 5px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    font-size: 14px;
+    color: #a09c91;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.loader {
+    text-align: center;
+    padding: 20px;
+    color: #c9aa71;
+}
+
+.empty-save-list {
+    text-align: center;
+    padding: 20px;
+    color: #8b7355;
+    font-style: italic;
+}
+.content-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 10px;
+}
+
+.content-preview {
+    margin-bottom: 10px;
+}
+
+.content-preview summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #e0dcd1;
+    list-style: none; /* 隐藏默认的三角箭头 */
+}
+
+.content-preview summary::-webkit-details-marker {
+    display: none; /* 隐藏默认的三角箭头 for Chrome */
+}
+
+.content-preview summary:before {
+    content: '▶';
+    margin-right: 8px;
+    font-size: 10px;
+    display: inline-block;
+    transition: transform 0.2s;
+}
+
+.content-preview[open] > summary:before {
+    transform: rotate(90deg);
+}
+
+.content-preview summary:hover {
+    color: #ffd700;
+}
+
+.char-count {
+    font-size: 12px;
+    color: #a09c91;
+    margin-left: 10px;
+}
+
+.content-full {
+    padding: 10px;
+    margin-top: 5px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    font-size: 14px;
+    color: #a09c91;
+    max-height: 200px;
+    overflow-y: auto;
+}
+/* 存档命名按钮样式 */
+.btn-rename-new {
+    background-color: #4a4a4a;
+    color: #fff;
+    border: 1px solid #666;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.3s;
+}
+
+.btn-rename-new:hover {
+    background-color: #5a5a5a;
+}
